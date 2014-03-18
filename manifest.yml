@@ -1,9 +1,9 @@
 ---
 applications:
-- name: ghostme
+- name: REPLACE_ME
   memory: 512M
   instances: 1
-  host: ghostme
+  host: REPLACE_ME
   domain: ng.bluemix.net 
   path: .
   command: node index --production
