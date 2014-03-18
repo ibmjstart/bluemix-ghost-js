@@ -9,8 +9,6 @@ var postCreds;
 var bluemixport = (process.env.VCAP_APP_PORT || '2368');
 var bluemixhost = (process.env.VCAP_APP_HOST || '127.0.0.1');
 
-console.log(process.env.VCAP_SERVICES);
-
 if (process.env.VCAP_SERVICES) {
     var services = JSON.parse(process.env.VCAP_SERVICES);
     // look for a service starting with 'postgresql' or 'mysql'
@@ -31,7 +29,6 @@ if (process.env.VCAP_SERVICES) {
 	}
     }
 } else {
-    console.log('oops');
     // Let's assume we're running locally and populate
     postCreds = {
         name : '',
@@ -40,7 +37,7 @@ if (process.env.VCAP_SERVICES) {
         user : '',
         password : '',
         client : 'mysql',
-        filename : path.join(__dirname, '/content/data/ghost-dev.db')
+        filename : '')
     };
 }
 
@@ -50,7 +47,7 @@ config = {
     // ### Development **(default)**
     development: {
         // The url to use when providing links to the site, E.g. in RSS and email.
-        url: 'http://ghostme.ng.bluemix.net',
+        url: 'http://my_app_name.ng.bluemix.net',
 
         // Example mail config
         // Visit http://docs.ghost.org/mail for instructions
@@ -87,7 +84,7 @@ config = {
     // Configure your URL and mail settings here
     production: {
         // TODO:  CHANGE URL to match your BlueMix APP Name
-        url: 'http://ghostme.ng.bluemix.net',
+        url: 'http://my_app_name.ng.bluemix.net',
         mail: {},
         database: {
             client: postCreds.client,
@@ -107,81 +104,6 @@ config = {
             host: util.format('%s',bluemixhost),
             // Port to be passed to node's `net.Server#listen()`, for iisnode set this to `process.env.PORT`
             port: util.format('%s',bluemixport)
-        }
-    },
-
-    // **Developers only need to edit below here**
-
-    // ### Testing
-    // Used when developing Ghost to run tests and check the health of Ghost
-    // Uses a different port number
-    testing: {
-        url: 'http://127.0.0.1:2369',
-        database: {
-            client: 'sqlite3',
-            connection: {
-                filename: path.join(__dirname, '/content/data/ghost-test.db')
-            }
-        },
-        server: {
-            host: '127.0.0.1',
-            port: '2369'
-        }
-    },
-
-    // ### Travis
-    // Automated testing run through GitHub
-    'travis-sqlite3': {
-        url: 'http://127.0.0.1:2369',
-        database: {
-            client: 'sqlite3',
-            connection: {
-                filename: path.join(__dirname, '/content/data/ghost-travis.db')
-            }
-        },
-        server: {
-            host: '127.0.0.1',
-            port: '2369'
-        }
-    },
-
-    // ### Travis
-    // Automated testing run through GitHub
-    'travis-mysql': {
-        url: 'http://127.0.0.1:2369',
-        database: {
-            client: 'mysql',
-            connection: {
-                host     : '127.0.0.1',
-                user     : 'travis',
-                password : '',
-                database : 'ghost_travis',
-                charset  : 'utf8'
-            }
-        },
-        server: {
-            host: '127.0.0.1',
-            port: '2369'
-        }
-    },
-
-    // ### Travis
-    // Automated testing run through GitHub
-    'travis-pg': {
-        url: 'http://127.0.0.1:2369',
-        database: {
-            client: 'pg',
-            connection: {
-                host     : '127.0.0.1',
-                user     : 'postgres',
-                password : '',
-                database : 'ghost_travis',
-                charset  : 'utf8'
-            }
-        },
-        server: {
-            host: '127.0.0.1',
-            port: '2369'
         }
     }
 };
