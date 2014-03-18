@@ -1,0 +1,13 @@
+---
+applications:
+- name: ghostme
+  memory: 512M
+  instances: 1
+  host: ghostme
+  domain: ng.bluemix.net 
+  path: .
+  command: node index --production
+  env:
+    NODE_ENV: production
+  services:
+  - ghostmedbservice
