@@ -10,4 +10,4 @@ applications:
   env:
     NODE_ENV: production
   services:
-  - ghostmedbservice
+  - ghostdbservice
