@@ -4,29 +4,37 @@
 var path = require('path'),
     config;
 
+// Modifications for BlueMix compatibility
 var util = require('util');
 var postCreds;
 var bluemixport = (process.env.VCAP_APP_PORT || '2368');
 var bluemixhost = (process.env.VCAP_APP_HOST || '127.0.0.1');
+var yaml = require('js-yaml');
+var fs = require('fs');
+var apphost = '';
+var appdomain = '';
+var appurl = '';
+
+// Read Manifest.yml file to construct ghost application url or throw exception on error
+try {
+  var doc = yaml.safeLoad(fs.readFileSync('./manifest.yml', 'utf8'));
+  apphost = doc.applications[0].host;
+  appdomain = doc.applications[0].domain;
+  appurl = 'http://' + apphost + '.' + appdomain;
+} catch (e) {
+  console.log(e);
+}
 
 if (process.env.VCAP_SERVICES) {
     var services = JSON.parse(process.env.VCAP_SERVICES);
-    // look for a service starting with 'postgresql' or 'mysql'
-    // these are the two database types supported by Ghost right now
+    // look for a service starting with 'mysql'
+    // MySQL is the only one supported by Ghost right now
     for (var svcName in services) {
-        if (svcName.match(/^postgresql/)) {
-            postCreds = services[svcName][0]['credentials'];
-            postCreds.client = 'pg';
-            postCreds.filename = '';
-        } else if (svcName.match(/^mysql/)) {
+        if (svcName.match(/^mysql/)) {
             postCreds = services[svcName][0]['credentials'];
             postCreds.client = 'mysql';
             postCreds.filename = '';
-        } else if (svcName.match(/^cleardb/)) {
-            postCreds = services[svcName][0]['credentials'];
-	    postCreds.client = 'mysql';
-            postCreds.filename = '';
-	}
+        }
     }
 } else {
     // Let's assume we're running locally and populate
@@ -37,7 +45,7 @@ if (process.env.VCAP_SERVICES) {
         user : '',
         password : '',
         client : 'mysql',
-        filename : '')
+        filename : path.join(__dirname, '/content/data/ghost-dev.db')
     };
 }
 
@@ -83,9 +91,24 @@ config = {
     // When running Ghost in the wild, use the production environment
     // Configure your URL and mail settings here
     production: {
-        // TODO:  CHANGE URL to match your BlueMix APP Name
-        url: 'http://my_app_name.ng.bluemix.net',
-        mail: {},
+    	// URL constructed from data within the manifest.yml file.
+        url: util.format('%s',appurl),
+        
+        // Example mail config
+        // Visit http://docs.ghost.org/mail for instructions
+        // ```
+        //  mail: {
+        //      transport: 'SMTP',
+        //      options: {
+        //          service: 'Mailgun',
+        //          auth: {
+        //              user: '', // mailgun username
+        //              pass: ''  // mailgun password
+        //          }
+        //      }
+        //  },
+        // ```
+        
         database: {
             client: postCreds.client,
             connection: {
