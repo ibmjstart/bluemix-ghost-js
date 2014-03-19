@@ -5,7 +5,6 @@ var path = require('path'),
     config;
 
 // Modifications for BlueMix compatibility
-var util = require('util');
 var postCreds;
 var bluemixport = (process.env.VCAP_APP_PORT || '2368');
 var bluemixhost = (process.env.VCAP_APP_HOST || '127.0.0.1');
@@ -92,7 +91,7 @@ config = {
     // Configure your URL and mail settings here
     production: {
     	// URL constructed from data within the manifest.yml file.
-        url: util.format('%s',appurl),
+        url: appurl,
         
         // Example mail config
         // Visit http://docs.ghost.org/mail for instructions
@@ -124,9 +123,9 @@ config = {
         },
         server: {
             // Host to be passed to node's `net.Server#listen()`
-            host: util.format('%s',bluemixhost),
+            host: bluemixhost,
             // Port to be passed to node's `net.Server#listen()`, for iisnode set this to `process.env.PORT`
-            port: util.format('%s',bluemixport)
+            port: bluemixport
         }
     }
 };
