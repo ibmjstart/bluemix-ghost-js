@@ -16,12 +16,11 @@ var _       = require('lodash'),
 
 if (process.env.VCAP_SERVICES) {
     var services = JSON.parse(process.env.VCAP_SERVICES);
-    // look for a service starting with 'MongoDB'
-    // We are going to leverage the Mongo's GridFS functionality
+    // look for a service starting with 'User Provided'
+    //
     for (var svcName in services) {
         if (svcName.match(/^user-provided/)) {
             cloudantCreds = services[svcName][0]['credentials'];
-            console.log(JSON.stringify(cloudantCreds));
         }
     }
 } else {
@@ -52,6 +51,8 @@ cloudantFileStore = _.extend(baseStore, {
             // The src for the image must be in URI format, not a file system path, which in Windows uses \
             // For local file system storage can use relative path so add a slash
             var fullUrl = (config().paths.subdir + '/' + path.relative(config().paths.appRoot, targetFilename)).replace(new RegExp('\\' + path.sep, 'g'), '/');
+
+            // Let's assume PNG images are the norm and toggle the content-type from there
             var contentType = 'image/png';
             var extension = path.extname(targetFilename);
             switch (extension) {
@@ -73,33 +74,35 @@ cloudantFileStore = _.extend(baseStore, {
             }
 
             var base = path.basename(targetFilename, extension);
-            //console.log(base);
-            //console.log(extension);
-            //console.log(fullUrl);
-            console.log('https://' + cloudantCreds.url + '/' + cloudantCreds.database + '/' + base + fullUrl);
+            //console.log('https://' + cloudantCreds.url + '/' + cloudantCreds.database + '/' + base + fullUrl);
             var cloudantImageUrl = 'https://' + cloudantCreds.url + '/' + cloudantCreds.database + '/' + base + fullUrl;
             var data = fs.readFileSync('/home/vcap/app' + fullUrl);
 
+            //Let's try to find a document with the same label as the image and then drill down to find the image attachment
             ghostimages.get(base, {revs_info: true}, function(err, getBody) {
                 if (err) {
                     console.log(err.error);
-                    console.log('I am hoping the err above means that doc does not exist');
+                    // Error recorded should be missing to indicate this is in fact a brand new image
                     //Create new document with name of filename
                     ghostimages.insert({ type: 'ghost.js' }, base, function(err, insertBody) {
                         if (err) {
+                            // Log any errors encountered for troubleshooting
                             console.log(err.reason);
                         } else {
+                            // Attach image to the newly created document
                              ghostimages.attachment.insert(insertBody.id, fullUrl, new Buffer(data, 'binary'), contentType, {rev: insertBody.rev}, function(err, attachBody) {
                                 if (err) {
+                                    // Log any errors encountered for troubleshooting
                                     console.log(err.reason);
                                 }
                              });
                         }
                     });
                 } else {
-                    console.log('This doc already exists and just needs updating');
+                    // Looks like a document already exists with this image name.  Let's update it with the new attachment
                     ghostimages.attachment.insert(getBody.id, fullUrl, new Buffer(data, 'binary'), contentType, {rev: getBody.rev}, function(err, attachBody) {
                         if (err) {
+                            // Log any errors encountered for troubleshooting
                             console.log(err.reason);
                         }
                     });
@@ -107,10 +110,7 @@ cloudantFileStore = _.extend(baseStore, {
 
             });
 
-            /*
-
-            */
-
+            // Let's give Cloudant a wee bit of time to get the data and create the doc + attachment.  Say 750 ms seems like a good first approx.
             setTimeout(function() {return saved.resolve(cloudantImageUrl);}, 750);
 
         }).otherwise(function (e) {
@@ -128,30 +128,27 @@ cloudantFileStore = _.extend(baseStore, {
         var base = path.basename(filename, extension);
         var fullname = base + extension;
 
-            console.log(filename);
-            console.log(fullname);
-
-                console.log('We have hit the exists else branch ...');
-                ghostimages.get(filename, {revs_info: true}, function(err, getBody) {
-                    if (err) {
+        // Let's try to get this image from Cloudant by checking for the doc first
+        ghostimages.get(filename, {revs_info: true}, function(err, getBody) {
+            if (err) {
+                // Couldn't find the doc.  Record the reason and notify as false.
+                console.log(err.reason);
+                done.resolve(false);
+            } else {
+                console.log('Found image document in Cloudant cache');
+                // Let's try to get the image attachment associated with this doc
+                ghostimages.attachment.get(base, filename, function (err, attachBody) {
+                    if (!err) {
+                        // We found it.  Notify as true.
+                        done.resolve(true);
+                    } else {
+                        // Not there.  Record the reason and notify as false
                         console.log(err.reason);
                         done.resolve(false);
-                    } else {
-                        console.log('Found image document in Cloudant cache');
-                        //cosnole.log('Let us ressurect back to disk');
-                        ghostimages.attachment.get(base, filename, function (err, attachBody) {
-                            if (!err) {
-                                console.log('Resurrected file from Cloudant cache');
-                                //fs.writeFile(filename, attachBody);
-                                done.resolve(true);
-                            } else {
-                                console.log('Getting Cloudant cache version has failed');
-                                console.log(err.reason);
-                                done.resolve(false);
-                            }
-                        });
                     }
                 });
+            }
+        });
 
         return done.promise;
     },
