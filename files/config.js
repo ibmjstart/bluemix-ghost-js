@@ -93,13 +93,6 @@ config = {
     	// URL constructed from data within the manifest.yml file.
         url: appurl,
         
-        // When file storage is disabled, Ghost's image upload tools 
-        // will prompt you to enter a URL by default, thereby preventing 
-        // you from uploading files that will go missing for systems
-        // without persistent file storage.
-        
-        fileStorage: false, 
-        
         // Example mail config
         // Visit http://docs.ghost.org/mail for instructions
         // ```
