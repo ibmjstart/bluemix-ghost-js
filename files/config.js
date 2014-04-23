@@ -48,8 +48,6 @@ if (process.env.VCAP_SERVICES) {
     };
 }
 
-console.log(JSON.stringify(postCreds));
-
 config = {
     // ### Development **(default)**
     development: {
