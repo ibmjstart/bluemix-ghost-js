@@ -1,14 +1,14 @@
 ---
 applications:
-- name: ghostrox
+- name: replace_me
   memory: 512M
   instances: 1
-  host: ghostrox
+  host: replace_me
   domain: ng.bluemix.net
   path: .
   command: node index --production
   env:
     NODE_ENV: production
   services:
-  - ghostdbservice
-  - cloudantImageStore
+  - replace_me_ghostdb_mysql_service
+  - replace_me_cloudantImageStore
