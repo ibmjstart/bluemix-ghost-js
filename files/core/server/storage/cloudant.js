@@ -27,6 +27,7 @@ if (process.env.VCAP_SERVICES) {
     console.log('No Cloudant CouchDB service attached');
 }
 
+
 var nano = require('nano')('http://' + cloudantCreds.username + ':' + cloudantCreds.password + '@' + cloudantCreds.url);
 var ghostimages = nano.use(cloudantCreds.database);
 
@@ -81,18 +82,21 @@ cloudantFileStore = _.extend(baseStore, {
             //Let's try to find a document with the same label as the image and then drill down to find the image attachment
             ghostimages.get(base, {revs_info: true}, function(err, getBody) {
                 if (err) {
+                    console.log('Could not find the doc');
                     console.log(err.error);
                     // Error recorded should be missing to indicate this is in fact a brand new image
                     //Create new document with name of filename
                     ghostimages.insert({ type: 'ghost.js' }, base, function(err, insertBody) {
                         if (err) {
                             // Log any errors encountered for troubleshooting
+                            console.log('Could not insert the doc');
                             console.log(err.reason);
                         } else {
                             // Attach image to the newly created document
                              ghostimages.attachment.insert(insertBody.id, fullUrl, new Buffer(data, 'binary'), contentType, {rev: insertBody.rev}, function(err, attachBody) {
                                 if (err) {
                                     // Log any errors encountered for troubleshooting
+                                    console.log('Could not insert the image');
                                     console.log(err.reason);
                                 }
                              });
@@ -103,7 +107,10 @@ cloudantFileStore = _.extend(baseStore, {
                     ghostimages.attachment.insert(getBody.id, fullUrl, new Buffer(data, 'binary'), contentType, {rev: getBody.rev}, function(err, attachBody) {
                         if (err) {
                             // Log any errors encountered for troubleshooting
+                            console.log('Could not insert the updated image');
                             console.log(err.reason);
+                            console.log(cloudantImageUrl);
+                            setTimeout(function() {return saved.resolve(cloudantImageUrl);}, 750);
                         }
                     });
                 }
@@ -132,6 +139,7 @@ cloudantFileStore = _.extend(baseStore, {
         ghostimages.get(filename, {revs_info: true}, function(err, getBody) {
             if (err) {
                 // Couldn't find the doc.  Record the reason and notify as false.
+                console.log('Could not find the doc: ' + filename);
                 console.log(err.reason);
                 done.resolve(false);
             } else {
@@ -143,6 +151,7 @@ cloudantFileStore = _.extend(baseStore, {
                         done.resolve(true);
                     } else {
                         // Not there.  Record the reason and notify as false
+                        console.log('Could not attach the image');
                         console.log(err.reason);
                         done.resolve(false);
                     }
