@@ -10,10 +10,16 @@ var _       = require('lodash'),
     errors  = require('../errorHandling'),
     config  = require('../config'),
     baseStore   = require('./base'),
-    dbname = 'ghostimages',
+    https =  require('https'),
+    querystring = require('querystring'),
+    dbname = 'ghost-images',
     imagestore,
     cloudantFileStore;
 
+if (process.env.VCAP_APPLICATION) {
+    var appdetails = JSON.parse(process.env.VCAP_APPLICATION);
+    dbname = appdetails.name + '-ghost-images';
+}
 
 if (process.env.VCAP_SERVICES) {
     var services = JSON.parse(process.env.VCAP_SERVICES);
@@ -35,15 +41,56 @@ nano.db.get(dbname, function(err, body) {
     if (err) {
         nano.db.create(dbname, function(err, body) {
             if (!err) {
-                console.log(dbname + ' database was successfully created');
+                console.log(dbname.toUpperCase() + ' database was successfully created');
+                // Using the format  https://<username>:<password>@cloudant.com/api/set_permissions
+                // Content-Type:  application/x-www-form-urlencoded
+                // Post Body:  username=nobody&database=<username>/<dbname>&roles=_reader
+                // The username "nobody" represents the "Everone Else" unauthenticated user group (aka Public)
+
+                var data = querystring.stringify({
+                    username: 'nobody',
+                    database: cloudantCreds.username + '/' + dbname,
+                    roles: '_reader'
+                });
+
+                var auth = 'Basic ' + new Buffer( cloudantCreds.username + ':' + cloudantCreds.password).toString('base64');
+
+                var options = {
+                    hostname: 'cloudant.com',
+                    port: 443,
+                    path: '/api/set_permissions',
+                    method: 'POST',
+                    headers: {
+                        'Authorization' : auth,
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Content-Length': Buffer.byteLength(data)
+                    }
+                };
+
+                console.log('Setting permissions to reader on ' + dbname.toUpperCase() + ' for unauthenticated users ...');
+                var request=https.request(options, function(response) {
+                    response.setEncoding('utf8');
+                    response.on('data', function (chunk) {
+                        if (JSON.parse(chunk).ok === true) {
+                        //if (chunk.indexOf('ok') >= 0) {
+                            console.log("Permissions successfully set.");
+                        } else {
+                            console.log("Permissions fail to set");
+                            console.log(JSON.parse.ok);
+                            console.log('Body: ' + chunk);
+                        }
+                    });
+                });
+                request.write(data);
+                request.end();
                 imagestore = nano.use(dbname);
             } else {
-                console.log(dbname + ' database has failed to be created');
+                console.log(dbname.toUpperCase() + ' database has failed to be created');
                 console.log('Reason: ' + err.error);
             }
         });
     } else {
-        console.log(dbname + ' database was successfully located');
+        console.log(dbname.toUpperCase() + ' database already exists and will be used.');
         imagestore = nano.use(dbname);
     }
 });
@@ -151,8 +198,8 @@ cloudantFileStore = _.extend(baseStore, {
 
             });
 
-            // Let's give Cloudant a wee bit of time to get the data and create the doc + attachment.  Say 250 ms seems like a good first approx.
-            setTimeout(function() {return saved.resolve(cloudantImageUrl);}, 250);
+            // Let's give Cloudant a wee bit of time to get the data and create the doc + attachment.  Say 1000 ms seems like a good first approx.
+            setTimeout(function() {return saved.resolve(cloudantImageUrl);}, 1000);
 
         }).otherwise(function (e) {
             errors.logError(e);
