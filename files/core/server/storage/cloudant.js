@@ -23,10 +23,10 @@ if (process.env.VCAP_APPLICATION) {
 
 if (process.env.VCAP_SERVICES) {
     var services = JSON.parse(process.env.VCAP_SERVICES);
-    // look for a service starting with 'User Provided'
+    // look for a service starting with 'CloudantNoSQLDB'
     //
     for (var svcName in services) {
-        if (svcName.match(/^user-provided/)) {
+        if (svcName.match(/^cloudantNoSQLDB/)) {
             cloudantCreds = services[svcName][0]['credentials'];
         }
     }
@@ -35,7 +35,7 @@ if (process.env.VCAP_SERVICES) {
 }
 
 
-var nano = require('nano')('https://' + cloudantCreds.username + ':' + cloudantCreds.password + '@' + cloudantCreds.url);
+var nano = require('nano')(cloudantCreds.url);
 
 nano.db.get(dbname, function(err, body) {
     if (err) {
