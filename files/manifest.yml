@@ -4,7 +4,7 @@ applications:
   memory: 512M
   instances: 1
   host: replace_me
-  domain: ng.bluemix.net
+  domain: mybluemix.net
   path: .
   command: node index --production
   env:
