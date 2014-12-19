@@ -140,8 +140,8 @@ cloudantFileStore = _.extend(baseStore, {
             }
 
             var base = path.basename(targetFilename, extension);
-            //console.log('https://' + cloudantCreds.url + '/' + dbname + '/' + base + fullUrl);
-            var cloudantImageUrl = 'https://' + cloudantCreds.url + '/' + dbname + '/' + base + fullUrl;
+            //console.log(cloudantCreds.url + '/' + dbname + '/' + base + fullUrl);
+            var cloudantImageUrl = cloudantCreds.url + '/' + dbname + '/' + base + fullUrl;
             var data = fs.readFileSync('/home/vcap/app' + fullUrl);
 
             //Let's try to find a document with the same label as the image and then drill down to find the image attachment
