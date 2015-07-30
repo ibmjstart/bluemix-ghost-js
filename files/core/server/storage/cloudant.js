@@ -7,7 +7,7 @@ var _       = require('lodash'),
     nodefn  = require('when/node/function'),
     path    = require('path'),
     when    = require('when'),
-    errors  = require('../errorHandling'),
+    errors  = require('../errors'),
     config  = require('../config'),
     baseStore   = require('./base'),
     https =  require('https'),
@@ -103,7 +103,7 @@ cloudantFileStore = _.extend(baseStore, {
     // - returns a promise which ultimately returns the full url to the uploaded image
     'save': function (image) {
         var saved = when.defer(),
-            targetDir = this.getTargetDir(config().paths.imagesPath),
+            targetDir = this.getTargetDir(config.get().paths.imagesPath),
             targetFilename;
 
         this.getUniqueFileName(this, image, targetDir).then(function (filename) {
@@ -116,7 +116,7 @@ cloudantFileStore = _.extend(baseStore, {
         }).then(function () {
             // The src for the image must be in URI format, not a file system path, which in Windows uses \
             // For local file system storage can use relative path so add a slash
-            var fullUrl = (config().paths.subdir + '/' + path.relative(config().paths.appRoot, targetFilename)).replace(new RegExp('\\' + path.sep, 'g'), '/');
+            var fullUrl = (config.get().paths.subdir + '/' + path.relative(config.get().paths.appRoot, targetFilename)).replace(new RegExp('\\' + path.sep, 'g'), '/');
 
             // Let's assume PNG images are the norm and toggle the content-type from there
             var contentType = 'image/png';
@@ -216,7 +216,7 @@ cloudantFileStore = _.extend(baseStore, {
         var extension = path.extname(filename);
         var base = path.basename(filename, extension);
         var fullname = base + extension;
-        var fullUrl = (config().paths.subdir + '/' + path.relative(config().paths.appRoot, filename)).replace(new RegExp('\\' + path.sep, 'g'), '/');
+        var fullUrl = (config.get().paths.subdir + '/' + path.relative(config.get().paths.appRoot, filename)).replace(new RegExp('\\' + path.sep, 'g'), '/');
 
         // Let's try to get this image from Cloudant by checking for the doc first
         imagestore.get(base, {revs_info: true}, function(err, getBody) {
@@ -252,7 +252,7 @@ cloudantFileStore = _.extend(baseStore, {
             ONE_YEAR_MS = 365 * 24 * ONE_HOUR_MS;
 
         // For some reason send divides the max age number by 1000
-        return express['static'](config().paths.imagesPath, {maxAge: ONE_YEAR_MS});
+        return express.static(config.get().paths.imagesPath, {maxAge: ONE_YEAR_MS});
     }
 });
 
