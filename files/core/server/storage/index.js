@@ -1,7 +1,7 @@
-var errors = require('../errorHandling'),
+var errors = require('../errors'),
     storage;
 
-function get_storage() {
+function getStorage() {
     // TODO: this is where the check for storage apps should go
     // Local file system is the default
     var storageChoice = 'cloudant';
@@ -19,4 +19,4 @@ function get_storage() {
     return storage;
 }
 
-module.exports.get_storage = get_storage;
+module.exports.getStorage = getStorage;
