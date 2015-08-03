@@ -9,6 +9,7 @@ var _       = require('lodash'),
     when    = require('when'),
     errors  = require('../errors'),
     config  = require('../config'),
+    util     = require('util'),
     baseStore   = require('./base'),
     https =  require('https'),
     querystring = require('querystring'),
@@ -33,7 +34,6 @@ if (process.env.VCAP_SERVICES) {
 } else {
     console.log('No Cloudant CouchDB service attached');
 }
-
 
 var nano = require('nano')(cloudantCreds.url);
 
@@ -95,165 +95,165 @@ nano.db.get(dbname, function(err, body) {
     }
 });
 
+function CloudantFileStore() {
+}
+util.inherits(CloudantFileStore, baseStore);
 
-cloudantFileStore = _.extend(baseStore, {
-    // ### Save
-    // Saves the image to storage (the file system)
-    // - image is the express image object
-    // - returns a promise which ultimately returns the full url to the uploaded image
-    'save': function (image) {
-        var saved = when.defer(),
-            targetDir = this.getTargetDir(config.get().paths.imagesPath),
-            targetFilename;
+// ### Save
+// Saves the image to storage (the file system)
+// - image is the express image object
+// - returns a promise which ultimately returns the full url to the uploaded image
+CloudantFileStore.prototype.save = function (image) {
+    var saved = when.defer(),
+        targetDir = this.getTargetDir(config.get().paths.imagesPath),
+        targetFilename;
 
-        this.getUniqueFileName(this, image, targetDir).then(function (filename) {
-            targetFilename = filename;
-            return nodefn.call(fs.mkdirs, targetDir);
-        }).then(function () {
-            return nodefn.call(fs.copy, image.path, targetFilename);
-        }).then(function () {
-            return nodefn.call(fs.unlink, image.path).otherwise(errors.logError);
-        }).then(function () {
-            // The src for the image must be in URI format, not a file system path, which in Windows uses \
-            // For local file system storage can use relative path so add a slash
-            var fullUrl = (config.get().paths.subdir + '/' + path.relative(config.get().paths.appRoot, targetFilename)).replace(new RegExp('\\' + path.sep, 'g'), '/');
+    this.getUniqueFileName(this, image, targetDir).then(function (filename) {
+        targetFilename = filename;
+        return nodefn.call(fs.mkdirs, targetDir);
+    }).then(function () {
+        return nodefn.call(fs.copy, image.path, targetFilename);
+    }).then(function () {
+        return nodefn.call(fs.unlink, image.path).otherwise(errors.logError);
+    }).then(function () {
+        // The src for the image must be in URI format, not a file system path, which in Windows uses \
+        // For local file system storage can use relative path so add a slash
+        var fullUrl = (config.get().paths.subdir + '/' + path.relative(config.get().paths.appRoot, targetFilename)).replace(new RegExp('\\' + path.sep, 'g'), '/');
 
-            // Let's assume PNG images are the norm and toggle the content-type from there
-            var contentType = 'image/png';
-            var extension = path.extname(targetFilename);
-            switch (extension) {
-                case '.jpg | .jpeg':
-                    contentType = 'image/jpeg';
-                    break;
-                case '.png':
-                    contentType = 'image/png';
-                    break;
-                case '.gif':
-                    contentType = 'image/gif';
-                    break;
-                case '.svg | .svgz':
-                    contentType = 'image/svg+xml';
-                    break;
-                default:
-                    contentType = 'image';
-                    break;
-            }
+        // Let's assume PNG images are the norm and toggle the content-type from there
+        var contentType = 'image/png';
+        var extension = path.extname(targetFilename);
+        switch (extension) {
+            case '.jpg | .jpeg':
+                contentType = 'image/jpeg';
+                break;
+            case '.png':
+                contentType = 'image/png';
+                break;
+            case '.gif':
+                contentType = 'image/gif';
+                break;
+            case '.svg | .svgz':
+                contentType = 'image/svg+xml';
+                break;
+            default:
+                contentType = 'image';
+                break;
+        }
 
-            var base = path.basename(targetFilename, extension);
-            //console.log(cloudantCreds.url + '/' + dbname + '/' + base + fullUrl);
-            var cloudantImageUrl = cloudantCreds.url + '/' + dbname + '/' + base + fullUrl;
-            var data = fs.readFileSync('/home/vcap/app' + fullUrl);
+        var base = path.basename(targetFilename, extension);
+        //console.log(cloudantCreds.url + '/' + dbname + '/' + base + fullUrl);
+        var cloudantImageUrl = cloudantCreds.url + '/' + dbname + '/' + base + fullUrl;
+        var data = fs.readFileSync('/home/vcap/app' + fullUrl);
 
-            //Let's try to find a document with the same label as the image and then drill down to find the image attachment
-            imagestore.get(base, {revs_info: true}, function(err, getBody) {
-                if (err) {
-                    console.log('{SAVE} Could not find the doc: ' + base);
-                    console.log('Reason: ' + err.error);
-                    // Error recorded should be missing to indicate this is in fact a brand new image
-                    //Create new document with name of filename
-                    imagestore.insert({ type: 'ghost.js' }, base, function(err, insertBody) {
-                        if (err) {
-                            // Log any errors encountered for troubleshooting
-                            console.log('{SAVE} Could not insert the doc: ' + base);
-                            console.log('Reason: ' + err.error);
-                        } else {
-                            console.log('{SAVE} Successfully inserted doc: ' + base)
-                            // Attach image to the newly created document
-                             imagestore.attachment.insert(insertBody.id, fullUrl, new Buffer(data, 'binary'), contentType, {rev: insertBody.rev}, function(err, attachBody) {
-                                if (err) {
-                                    // Log any errors encountered for troubleshooting
-                                    console.log('{SAVE} Could not insert the image' + fullUrl);
-                                    console.log('Reason: ' + err.error);
-                                } else {
-                                    console.log('{SAVE} Successfully inserted image: ' + fullUrl);
-                                }
-                             });
-                        }
-                    });
-                } else {
-                    // Looks like a document already exists with this image name.  Let's update it with the new attachment
-                    console.log('{SAVE} An image attachment already exists with this name');
-
-                    imagestore.attachment.get(base, fullUrl,  function(err, getAttachBody) {
-                        if (!err) {
-                            console.log('{SAVE} Duplicate attachment image located');
-
-                            imagestore.attachment.insert(base, fullUrl, new Buffer(data, 'binary'), contentType, {rev: getBody._rev}, function(err, attachBody) {
-                                if (err) {
-                                    // Log any errors encountered for troubleshooting
-                                    console.log('{SAVE} Could not insert the updated image');
-                                    console.log('Reason: ' + JSON.stringify(err));
-                                } else {
-                                    console.log('{SAVE} Successfully updated image: ' + fullUrl);
-                                }
-                            });
-
-                        } else {
-                            console.log('{SAVE} Did not find duplicate attachment');
-                            console.log('Reason: ' + err.error);
-                        }
-                    });
-
-                }
-
-            });
-
-            // Let's give Cloudant a wee bit of time to get the data and create the doc + attachment.  Say 1000 ms seems like a good first approx.
-            setTimeout(function() {return saved.resolve(cloudantImageUrl);}, 1000);
-
-        }).otherwise(function (e) {
-            errors.logError(e);
-            return saved.reject(e);
-        });
-
-        return saved.promise;
-    },
-
-    'exists': function (filename) {
-
-        // fs.exists does not play nicely with nodefn because the callback doesn't have an error argument
-        var done = when.defer();
-        var extension = path.extname(filename);
-        var base = path.basename(filename, extension);
-        var fullname = base + extension;
-        var fullUrl = (config.get().paths.subdir + '/' + path.relative(config.get().paths.appRoot, filename)).replace(new RegExp('\\' + path.sep, 'g'), '/');
-
-        // Let's try to get this image from Cloudant by checking for the doc first
+        //Let's try to find a document with the same label as the image and then drill down to find the image attachment
         imagestore.get(base, {revs_info: true}, function(err, getBody) {
             if (err) {
-                // Couldn't find the doc.  Record the reason and notify as false.
-                console.log('{EXISTS} Could not find the doc: ' + base);
+                console.log('{SAVE} Could not find the doc: ' + base);
                 console.log('Reason: ' + err.error);
-                done.resolve(false);
-            } else {
-                console.log('{EXISTS} Found image document in Cloudant cache: ' + base);
-                // Let's try to get the image attachment associated with this doc
-                imagestore.attachment.get(base, fullUrl, function (err, attachBody) {
-                    if (!err) {
-                        // We found it.  Notify as true.
-                        console.log('{EXISTS} Found image attachment: ' + fullUrl)
-                        done.resolve(false);    // Let's fall through the same code as not being there.
-                    } else {
-                        // Not there.  Record the reason and notify as false
-                        console.log('{EXISTS} Could not find the image ' + fullUrl);
+                // Error recorded should be missing to indicate this is in fact a brand new image
+                //Create new document with name of filename
+                imagestore.insert({ type: 'ghost.js' }, base, function(err, insertBody) {
+                    if (err) {
+                        // Log any errors encountered for troubleshooting
+                        console.log('{SAVE} Could not insert the doc: ' + base);
                         console.log('Reason: ' + err.error);
-                        done.resolve(false);
+                    } else {
+                        console.log('{SAVE} Successfully inserted doc: ' + base)
+                        // Attach image to the newly created document
+                         imagestore.attachment.insert(insertBody.id, fullUrl, new Buffer(data, 'binary'), contentType, {rev: insertBody.rev}, function(err, attachBody) {
+                            if (err) {
+                                // Log any errors encountered for troubleshooting
+                                console.log('{SAVE} Could not insert the image' + fullUrl);
+                                console.log('Reason: ' + err.error);
+                            } else {
+                                console.log('{SAVE} Successfully inserted image: ' + fullUrl);
+                            }
+                         });
                     }
                 });
+            } else {
+                // Looks like a document already exists with this image name.  Let's update it with the new attachment
+                console.log('{SAVE} An image attachment already exists with this name');
+
+                imagestore.attachment.get(base, fullUrl,  function(err, getAttachBody) {
+                    if (!err) {
+                        console.log('{SAVE} Duplicate attachment image located');
+
+                        imagestore.attachment.insert(base, fullUrl, new Buffer(data, 'binary'), contentType, {rev: getBody._rev}, function(err, attachBody) {
+                            if (err) {
+                                // Log any errors encountered for troubleshooting
+                                console.log('{SAVE} Could not insert the updated image');
+                                console.log('Reason: ' + JSON.stringify(err));
+                            } else {
+                                console.log('{SAVE} Successfully updated image: ' + fullUrl);
+                            }
+                        });
+
+                    } else {
+                        console.log('{SAVE} Did not find duplicate attachment');
+                        console.log('Reason: ' + err.error);
+                    }
+                });
+
             }
+
         });
 
-        return done.promise;
-    },
+        // Let's give Cloudant a wee bit of time to get the data and create the doc + attachment.  Say 1000 ms seems like a good first approx.
+        setTimeout(function() {return saved.resolve(cloudantImageUrl);}, 1000);
 
-    // middleware for serving the files
-    'serve': function () {
-        var ONE_HOUR_MS = 60 * 60 * 1000,
-            ONE_YEAR_MS = 365 * 24 * ONE_HOUR_MS;
+    }).otherwise(function (e) {
+        errors.logError(e);
+        return saved.reject(e);
+    });
 
-        // For some reason send divides the max age number by 1000
-        return express.static(config.get().paths.imagesPath, {maxAge: ONE_YEAR_MS});
-    }
-});
+    return saved.promise;
+}
 
-module.exports = cloudantFileStore;
+CloudantFileStore.prototype.exists = function (filename) {
+    // fs.exists does not play nicely with nodefn because the callback doesn't have an error argument
+    var done = when.defer();
+    var extension = path.extname(filename);
+    var base = path.basename(filename, extension);
+    var fullname = base + extension;
+    var fullUrl = (config.get().paths.subdir + '/' + path.relative(config.get().paths.appRoot, filename)).replace(new RegExp('\\' + path.sep, 'g'), '/');
+
+    // Let's try to get this image from Cloudant by checking for the doc first
+    imagestore.get(base, {revs_info: true}, function(err, getBody) {
+        if (err) {
+            // Couldn't find the doc.  Record the reason and notify as false.
+            console.log('{EXISTS} Could not find the doc: ' + base);
+            console.log('Reason: ' + err.error);
+            done.resolve(false);
+        } else {
+            console.log('{EXISTS} Found image document in Cloudant cache: ' + base);
+            // Let's try to get the image attachment associated with this doc
+            imagestore.attachment.get(base, fullUrl, function (err, attachBody) {
+                if (!err) {
+                    // We found it.  Notify as true.
+                    console.log('{EXISTS} Found image attachment: ' + fullUrl)
+                    done.resolve(false);    // Let's fall through the same code as not being there.
+                } else {
+                    // Not there.  Record the reason and notify as false
+                    console.log('{EXISTS} Could not find the image ' + fullUrl);
+                    console.log('Reason: ' + err.error);
+                    done.resolve(false);
+                }
+            });
+        }
+    });
+
+    return done.promise;
+}
+
+// middleware for serving the files
+CloudantFileStore.prototype.serve = function () {
+    var ONE_HOUR_MS = 60 * 60 * 1000,
+        ONE_YEAR_MS = 365 * 24 * ONE_HOUR_MS;
+
+    // For some reason send divides the max age number by 1000
+    return express.static(config.get().paths.imagesPath, {maxAge: ONE_YEAR_MS});
+}
+
+module.exports = CloudantFileStore;

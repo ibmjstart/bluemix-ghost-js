@@ -2,9 +2,8 @@ var errors = require('../errors'),
     storage;
 
 function getStorage() {
-    // TODO: this is where the check for storage apps should go
-    // Local file system is the default
     var storageChoice = 'cloudant';
+    var StorageConstructor;
 
     if (storage) {
         return storage;
@@ -12,10 +11,11 @@ function getStorage() {
 
     try {
         // TODO: determine if storage has all the necessary methods
-        storage = require('./' + storageChoice);
+        StorageConstructor = require('./' + storageChoice);
     } catch (e) {
         errors.logError(e);
     }
+    storage = new StorageConstructor();
     return storage;
 }
 
