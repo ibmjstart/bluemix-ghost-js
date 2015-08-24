@@ -16,7 +16,7 @@ var appurl = '';
 
 // Read Manifest.yml file to construct ghost application url or throw exception on error
 try {
-  var doc = yaml.safeLoad(fs.readFileSync('./manifest.yml', 'utf8'));
+  var doc = yaml.safeLoad(fs.readFileSync('./manifest.cfg', 'utf8'));
   apphost = doc.applications[0].host;
   appdomain = doc.applications[0].domain;
   appurl = 'http://' + apphost + '.' + appdomain;
