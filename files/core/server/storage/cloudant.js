@@ -10,6 +10,7 @@ var _       = require('lodash'),
     errors  = require('../errors'),
     config  = require('../config'),
     util     = require('util'),
+    Promise   = require('bluebird'),
     baseStore   = require('./base'),
     https =  require('https'),
     querystring = require('querystring'),
@@ -119,7 +120,7 @@ CloudantFileStore.prototype.save = function (image) {
         // The src for the image must be in URI format, not a file system path, which in Windows uses \
         // For local file system storage can use relative path so add a slash
         var fullUrl = (config.get().paths.subdir + '/' + path.relative(config.get().paths.appRoot, targetFilename)).replace(new RegExp('\\' + path.sep, 'g'), '/');
-
+        console.log("Full Local URL: " + fullUrl)
         // Let's assume PNG images are the norm and toggle the content-type from there
         var contentType = 'image/png';
         var extension = path.extname(targetFilename);
@@ -144,7 +145,6 @@ CloudantFileStore.prototype.save = function (image) {
         var base = path.basename(targetFilename, extension);
         //console.log(cloudantCreds.url + '/' + dbname + '/' + base + fullUrl);
         var cloudantImageUrl = cloudantCreds.url + '/' + dbname + '/' + base + fullUrl;
-        var data = fs.readFileSync('/home/vcap/app' + fullUrl);
 
         //Let's try to find a document with the same label as the image and then drill down to find the image attachment
         imagestore.get(base, {revs_info: true}, function(err, getBody) {
@@ -160,16 +160,22 @@ CloudantFileStore.prototype.save = function (image) {
                         console.log('Reason: ' + err.error);
                     } else {
                         console.log('{SAVE} Successfully inserted doc: ' + base)
-                        // Attach image to the newly created document
-                         imagestore.attachment.insert(insertBody.id, fullUrl, new Buffer(data, 'binary'), contentType, {rev: insertBody.rev}, function(err, attachBody) {
-                            if (err) {
-                                // Log any errors encountered for troubleshooting
-                                console.log('{SAVE} Could not insert the image' + fullUrl);
-                                console.log('Reason: ' + err.error);
-                            } else {
-                                console.log('{SAVE} Successfully inserted image: ' + fullUrl);
-                            }
-                         });
+                        // Let's make this more asynchronous friendly
+                        fs.readFile('/home/vcap/app' + fullUrl, function(err, data) {
+                            console.log('{SAVE} data.length==' + data.length);
+                            // Attach image to the newly created document
+                            imagestore.attachment.insert(insertBody.id, fullUrl, new Buffer(data, 'binary'), contentType, {rev: insertBody.rev}, function(err, attachBody) {
+                                if (err) {
+                                    // Log any errors encountered for troubleshooting
+                                    console.log('{SAVE} Could not insert the image' + fullUrl);
+                                    console.log('Reason: ' + err.error);
+                                } else {
+                                    console.log('{SAVE} Successfully inserted image: ' + fullUrl);
+                                }
+                            });
+                            // Let's get rid of this file now that it has been persisted.
+                            fs.unlink('/home/vcap/app' + fullUrl);
+                        });
                     }
                 });
             } else {
@@ -179,15 +185,20 @@ CloudantFileStore.prototype.save = function (image) {
                 imagestore.attachment.get(base, fullUrl,  function(err, getAttachBody) {
                     if (!err) {
                         console.log('{SAVE} Duplicate attachment image located');
-
-                        imagestore.attachment.insert(base, fullUrl, new Buffer(data, 'binary'), contentType, {rev: getBody._rev}, function(err, attachBody) {
-                            if (err) {
-                                // Log any errors encountered for troubleshooting
-                                console.log('{SAVE} Could not insert the updated image');
-                                console.log('Reason: ' + JSON.stringify(err));
-                            } else {
-                                console.log('{SAVE} Successfully updated image: ' + fullUrl);
-                            }
+                        // Let's make this more asynchronous friendly
+                        fs.readFile('/home/vcap/app' + fullUrl, function(err, data) {
+                            console.log('{SAVE} data.length==' + data.length);
+                            imagestore.attachment.insert(base, fullUrl, new Buffer(data, 'binary'), contentType, {rev: getBody._rev}, function(err, attachBody) {
+                                if (err) {
+                                    // Log any errors encountered for troubleshooting
+                                    console.log('{SAVE} Could not insert the updated image');
+                                    console.log('Reason: ' + JSON.stringify(err));
+                                } else {
+                                    console.log('{SAVE} Successfully updated image: ' + fullUrl);
+                                }
+                            });
+                            // Let's get rid of this file now that it has been persisted.
+                            fs.unlink('/home/vcap/app' + fullUrl);
                         });
 
                     } else {
@@ -257,3 +268,4 @@ CloudantFileStore.prototype.serve = function () {
 }
 
 module.exports = CloudantFileStore;
+
