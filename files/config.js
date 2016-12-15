@@ -3,24 +3,19 @@
 
 var path = require('path'),
     config;
+const url = require('url');
 
 // Modifications for BlueMix compatibility
 var postCreds;
+var postCredsUrl;
 var cloudantCreds;
 var bluemixport = (process.env.VCAP_APP_PORT || '2368');
 var bluemixhost = (process.env.VCAP_APP_HOST || '127.0.0.1');
-var yaml = require('js-yaml');
-var fs = require('fs');
-var apphost = '';
-var appdomain = '';
 var appurl = '';
 
 // Read Manifest.yml file to construct ghost application url or throw exception on error
 try {
-  var doc = yaml.safeLoad(fs.readFileSync('./manifest.cfg', 'utf8'));
-  apphost = doc.applications[0].host;
-  appdomain = doc.applications[0].domain;
-  appurl = 'http://' + apphost + '.' + appdomain;
+  appurl = 'https://' + JSON.parse(process.env.VCAP_APPLICATION)["application_uris"][0];
 } catch (e) {
   console.log(e);
 }
@@ -30,10 +25,16 @@ if (process.env.VCAP_SERVICES) {
     // look for a service starting with 'mysql'
     // MySQL is the only one supported by Ghost right now
     for (var svcName in services) {
-        if (svcName.match(/^mysql/)) {
+        if (svcName.match(/^user-provided/)) {
             postCreds = services[svcName][0]['credentials'];
-            postCreds.client = 'mysql';
+            postCredsUrl = url.parse(postCreds.uri, true);
+            if (postCredsUrl.protocol === "mysql:") {
+              postCreds.client = 'mysql';
+            } else if (postCredsUrl.protocol === "postgres:"){
+              postCreds.client = 'pg';
+            }
             postCreds.filename = '';
+
         } else if (svcName.match(/^cloudantNoSQLDB/)) {
             cloudantCreds = services[svcName][0]['credentials'];
             cloudantCreds.client = 'cloudant';
@@ -130,11 +131,11 @@ config = {
             client: postCreds.client,
             connection: {
                filename: postCreds.filename,
-               host: postCreds.hostname,
-               user: postCreds.username,
-               password: postCreds.password,
-               database: postCreds.name,
-               port: postCreds.port,
+               host: postCredsUrl.hostname,
+               user: postCredsUrl.auth.split(':')[0],
+               password: postCredsUrl.auth.split(':')[1],
+               database: postCredsUrl.pathname.substr(1),
+               port: postCredsUrl.port,
                charset: 'utf8'
             },
             debug: false

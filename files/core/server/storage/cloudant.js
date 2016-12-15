@@ -56,22 +56,26 @@ function CloudantFileStore() {
                       // Post Body:  username=nobody&database=<username>/<dbname>&roles=_reader
                       // The username "nobody" represents the "Everone Else" unauthenticated user group (aka Public)
 
-                      var data = querystring.stringify({
-                          username: 'nobody',
-                          database: cloudantCreds.username + '/' + dbname,
-                          roles: '_reader'
-                      });
+                      //var data = querystring.stringify({
+                      //    username: 'nobody',
+                      //    database: cloudantCreds.username + '/' + dbname,
+                      //    roles: '_reader'
+                      //});
+
+                      // Reference:  https://docs.cloudant.com/authorization.html
+                      var data = '{"cloudant": {"nobody": ["_reader"]}}';
 
                       var auth = 'Basic ' + new Buffer( cloudantCreds.username + ':' + cloudantCreds.password).toString('base64');
 
                       var options = {
-                          hostname: 'cloudant.com',
+                          hostname: cloudantCreds.host,
                           port: 443,
-                          path: '/api/set_permissions',
-                          method: 'POST',
+                          path: '/_api/v2/db/' + dbname + '/_security',
+                          method: 'PUT',
+                          json: true,
                           headers: {
                               'Authorization' : auth,
-                              'Content-Type': 'application/x-www-form-urlencoded',
+                              'Content-Type': 'application/json',
                               'Content-Length': Buffer.byteLength(data)
                           }
                       };
@@ -85,7 +89,6 @@ function CloudantFileStore() {
                                   console.log("Permissions successfully set.");
                               } else {
                                   console.log("Permissions fail to set");
-                                  console.log(JSON.parse.ok);
                                   console.log('Body: ' + chunk);
                               }
                           });
